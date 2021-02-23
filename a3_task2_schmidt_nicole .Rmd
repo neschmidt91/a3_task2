@@ -1,0 +1,90 @@
+---
+title: "Task 2"
+author: "Nicole Schmidt"
+date: "2/20/2021"
+output:
+  html_document:
+      code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(raster) #need to load raster package before tidyverse
+library(tidyverse)
+library(here)
+library(sf)
+library(fasterize)
+library(rgdal)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+knitr::include_graphics(here('ca_cetaceans'))
+
+cetaceans_files <- list.files(path = 'ca_cetaceans', full.names = TRUE)
+
+cetaceans_stack <- raster::stack(cetaceans_files)
+
+plot(cetaceans_stack) # species richness
+
+```
+
+Create a raster of species richness of cetacean species off the coast of California.  Species richness is simply the number of species that occur in a particular location.
+
+```{r}
+
+
+# create function to reclassify presence, If thresh is greater than .6 presence is yes and if less than no presence 
+is.cetacean <- function(x, thresh = .6) {
+ y = ifelse(x>= thresh, 1, 0)
+ return(y)
+}
+
+cetaceans <- calc(cetaceans_stack, fun = is.cetacean)
+
+plot(cetaceans)
+                     
+#cetaceans_file <- ('ca_cetaceans')
+
+#cetaceans_1 <- raster(cetaceans_file)
+
+```
+
+
+```{r}
+# convert raster to data frame so can  plot 
+
+cetaceans_df <- raster::rasterToPoints(cetaceans) %>% 
+  as.data.frame() %>%  #gives x and y coordinates
+  pivot_longer(`Balaenoptera_acutorostrata`:`Ziphius_cavirostris`,
+               names_to = "species", values_to = "presence")
+cetaceans_df[is.na(cetaceans_df[])] <- 0
+
+cetaceans_presence <- cetaceans_df %>% 
+  filter(presence == 1) %>% 
+  group_by(x, y) %>% 
+  count(presence)
+
+```
+
+
+```{r}
+
+#Bring in a shape file of the CA coastline from the rnaturalearth package 
+
+world <- ne_countries(scale = 'medium', returnclass = 'sf')
+
+#Make a static map of species richness
+ggplot()+
+ geom_raster(data = cetaceans_presence, aes(x = x, y = y, fill = n))+
+  geom_sf(data = world)+
+  coord_sf(expand = c(0,0), xlim = c(-125,-116), ylim = c(32, 38))+ # tells it is the map
+  theme_void()+
+  scale_fill_gradient(low = "light blue", high = "dark blue")+
+  theme(panel.background = element_rect(fill = "azure"))+
+   labs(fill = "Species Richness")
+  
+  
+
+```
+
